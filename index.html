@@ -1914,8 +1914,13 @@
                 saveCurrentMatch();
             }
             updateUI();
+            const oldWidth = logicalWidth;
+            const oldHeight = logicalHeight;
             resizeCanvasOnly();
-            centerGrid();
+            if (oldWidth && oldHeight && (logicalWidth !== oldWidth || logicalHeight !== oldHeight)) {
+                offsetX += (logicalWidth - oldWidth) / 2;
+                offsetY += (logicalHeight - oldHeight) / 2;
+            }
             draw();
         }
 

@@ -2197,11 +2197,15 @@
             triggerHaptic(20);
             if (!currentMatchId || !game) return;
 
-            const MAP_KEYS = ['SweetTooth', 'SharkfoodIsland', 'Foundry', 'SkullDuggery', 'Glitch'];
+            const ALL_MAP_KEYS = [
+                'Peekaboo2', 'SkullDuggery', 'Foundry', 'SweetTooth', 'GorgonHallow',
+                'SerynnReach', 'SharkfoodIsland', 'WarGarden', 'ThornGulley', 'SweetiePlains',
+                'Reaper', 'LongNine', 'TitheOfGeHenna', 'Glitch'
+            ];
             const RACE_KEYS = ['Scallywags', 'Feedback', 'Adorables', 'Veggienauts'];
             const TYPE_CODES = ['Runner', 'Soldier', 'Medic', 'Sniper', 'Heavy', 'Bombshell', 'Scrambler', 'Mobi', 'Bramble', 'BombshellSieged', 'BrambleSieged', 'Thorn'];
 
-            let mapIdx = MAP_KEYS.indexOf(gameParams.mapId); if (mapIdx === -1) mapIdx = 0;
+            let mapIdx = ALL_MAP_KEYS.indexOf(gameParams.mapId); if (mapIdx === -1) mapIdx = 0;
             let r1Idx = RACE_KEYS.indexOf(gameParams.p1Race); if (r1Idx === -1) r1Idx = 0;
             let r2Idx = RACE_KEYS.indexOf(gameParams.p2Race); if (r2Idx === -1) r2Idx = 0;
 
@@ -2314,7 +2318,11 @@
             if (!puzzleEncoded) return false;
 
             try {
-                const MAP_KEYS = ['SweetTooth', 'SharkfoodIsland', 'Foundry', 'SkullDuggery', 'Glitch'];
+                const ALL_MAP_KEYS = [
+                    'Peekaboo2', 'SkullDuggery', 'Foundry', 'SweetTooth', 'GorgonHallow',
+                    'SerynnReach', 'SharkfoodIsland', 'WarGarden', 'ThornGulley', 'SweetiePlains',
+                    'Reaper', 'LongNine', 'TitheOfGeHenna', 'Glitch'
+                ];
                 const RACE_KEYS = ['Scallywags', 'Feedback', 'Adorables', 'Veggienauts'];
                 const TYPE_CODES = ['Runner', 'Soldier', 'Medic', 'Sniper', 'Heavy', 'Bombshell', 'Scrambler', 'Mobi', 'Bramble', 'BombshellSieged', 'BrambleSieged', 'Thorn'];
 
@@ -2378,7 +2386,7 @@
                         }
 
                         gameParams = {
-                            mapId: MAP_KEYS[mapIdx] || 'SweetTooth',
+                            mapId: ALL_MAP_KEYS[mapIdx] || 'SweetTooth',
                             p1Race: RACE_KEYS[r1Idx] || 'Scallywags',
                             p2Race: RACE_KEYS[r2Idx] || 'Scallywags',
                             p1ColorKey: 'blue',
@@ -2451,7 +2459,7 @@
 
                 if (!isBitPacked) {
                     if (data.m !== undefined && typeof data.m === 'number') {
-                        let mapIdStr = MAP_KEYS[data.m] || 'SweetTooth';
+                        let mapIdStr = ALL_MAP_KEYS[data.m] || 'SweetTooth';
                         let r1Str = RACE_KEYS[data.r[0]] || 'Scallywags';
                         let r2Str = RACE_KEYS[data.r[1]] || 'Scallywags';
 

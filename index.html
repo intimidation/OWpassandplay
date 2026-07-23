@@ -2753,6 +2753,9 @@
                 const mainHeader = document.querySelector('header');
                 if (mainHeader) mainHeader.style.display = '';
             }
+            if (window.history && window.history.replaceState) {
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
             document.getElementById('app-container').style.display = 'none';
             document.getElementById('lobby-screen').style.display = 'flex';
             renderSavedMatches();

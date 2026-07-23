@@ -2158,74 +2158,100 @@
             triggerHaptic(20);
             if (!currentMatchId || !game) return;
 
-            // Ultra-compact puzzle representation:
-            // m: mapId, r1: p1Race, r2: p2Race, c1: p1ColorKey, c2: p2ColorKey, p: pogNerfs, t: turn (1=P1,2=P2), n: turnNum
-            // w: [p1Wits, p2Wits], b: [p1BaseHp, p2BaseHp]
-            // u: array of [typeCode, playerCode, q, r, hp]
-            // bonus: [ [q,r,ownerCode], ... ]
+            // Map list & Race list indexing for compact packing
+            const MAP_KEYS = ['SweetTooth', 'SharkfoodIsland', 'Foundry', 'SkullDuggery', 'Glitch'];
+            const RACE_KEYS = ['Scallywags', 'Feedback', 'Adorables', 'Veggienauts'];
             const TYPE_CODES = ['Runner', 'Soldier', 'Medic', 'Sniper', 'Heavy', 'Bombshell', 'Scrambler', 'Mobi', 'Bramble', 'BombshellSieged', 'BrambleSieged', 'Thorn'];
 
-            const puzzleData = {
-                m: gameParams.mapId,
-                r1: gameParams.p1Race,
-                r2: gameParams.p2Race,
-                c1: gameParams.p1ColorKey,
-                c2: gameParams.p2ColorKey,
-                p: gameParams.pogNerfs ? 1 : 0,
-                t: game.turn === 'P1' ? 1 : 2,
-                n: game.turnNumber,
-                w: [game.wits.P1, game.wits.P2],
-                b: [game.baseHp.P1, game.baseHp.P2],
-                u: game.units.map(u => {
-                    let typeIdx = TYPE_CODES.indexOf(u.type);
-                    let pIdx = u.player === 'P1' ? 1 : 2;
-                    let rules = unitRules[u.type];
-                    let defaultHp = rules ? rules.maxHp : 5;
-                    if (u.type === 'Mobi' && gameParams.pogNerfs) defaultHp = 1;
-                    if (u.hp === defaultHp) {
-                        return [typeIdx, pIdx, u.q, u.r];
-                    }
-                    return [typeIdx, pIdx, u.q, u.r, u.hp];
-                })
-            };
+            let mapIdx = MAP_KEYS.indexOf(gameParams.mapId);
+            if (mapIdx === -1) mapIdx = 0;
+            let r1Idx = RACE_KEYS.indexOf(gameParams.p1Race); if (r1Idx === -1) r1Idx = 0;
+            let r2Idx = RACE_KEYS.indexOf(gameParams.p2Race); if (r2Idx === -1) r2Idx = 0;
 
-            // Only add bonus spaces if claimed
+            // Build grid index lookup for 2-character hex placement
+            let gridList = grid || (mapConfig ? mapConfig.geomGrid : []);
+
+            let uPacked = game.units.map(u => {
+                let typeIdx = TYPE_CODES.indexOf(u.type); if (typeIdx === -1) typeIdx = 0;
+                let pIdx = u.player === 'P1' ? 0 : 1;
+                let hexIdx = gridList.findIndex(g => g.q === u.q && g.r === u.r);
+                if (hexIdx === -1) hexIdx = 0;
+
+                let rules = unitRules[u.type];
+                let defaultHp = rules ? rules.maxHp : 5;
+                if (u.type === 'Mobi' && gameParams.pogNerfs) defaultHp = 1;
+                let isCustomHp = u.hp !== defaultHp;
+
+                // Packed unit representation: [typeIdx, pIdx, hexIdx, hp (optional)]
+                return isCustomHp ? [typeIdx, pIdx, hexIdx, u.hp] : [typeIdx, pIdx, hexIdx];
+            });
+
             let activeBonus = [];
             if (game.bonusSpaces) {
                 Object.entries(game.bonusSpaces).forEach(([key, val]) => {
                     if (val && val.owner) {
                         let coords = key.split(',').map(Number);
-                        activeBonus.push([coords[0], coords[1], val.owner === 'P1' ? 1 : 2]);
+                        let hexIdx = gridList.findIndex(g => g.q === coords[0] && g.r === coords[1]);
+                        if (hexIdx !== -1) activeBonus.push([hexIdx, val.owner === 'P1' ? 0 : 1]);
                     }
                 });
             }
-            if (activeBonus.length > 0) puzzleData.k = activeBonus;
+
+            const compactPuzzle = {
+                m: mapIdx,
+                r: [r1Idx, r2Idx],
+                p: gameParams.pogNerfs ? 1 : 0,
+                t: game.turn === 'P1' ? 1 : 2,
+                n: game.turnNumber,
+                w: [game.wits.P1, game.wits.P2],
+                b: [game.baseHp.P1, game.baseHp.P2],
+                u: uPacked
+            };
+            if (activeBonus.length > 0) compactPuzzle.k = activeBonus;
 
             try {
-                const jsonStr = JSON.stringify(puzzleData);
+                const jsonStr = JSON.stringify(compactPuzzle);
                 const encoded = btoa(jsonStr).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-                const shareUrl = window.location.origin + window.location.pathname + '?p=' + encoded;
+                const longUrl = window.location.origin + window.location.pathname + '?p=' + encoded;
 
                 const btn = document.getElementById('share-puzzle-btn');
-                if (navigator.clipboard && navigator.clipboard.writeText) {
-                    navigator.clipboard.writeText(shareUrl).then(() => {
-                        if (btn) {
-                            btn.textContent = '✓ Copied Link!';
-                            btn.style.background = 'linear-gradient(135deg, #16a34a, #15803d)';
-                            setTimeout(() => {
-                                btn.textContent = '🔗 Share Link';
-                                btn.style.background = 'linear-gradient(135deg, #3b82f6, #2563eb)';
-                            }, 2500);
+                if (btn) btn.textContent = '⏳ Creating Short Link...';
+
+                // Try shortening URL via tinyurl API
+                fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`)
+                    .then(res => res.text())
+                    .then(shortUrl => {
+                        if (shortUrl && shortUrl.startsWith('http')) {
+                            copyTextToClipboard(shortUrl, btn);
+                        } else {
+                            copyTextToClipboard(longUrl, btn);
                         }
-                    }).catch(() => {
-                        prompt("Copy this puzzle link to share with others:", shareUrl);
+                    })
+                    .catch(() => {
+                        copyTextToClipboard(longUrl, btn);
                     });
-                } else {
-                    prompt("Copy this puzzle link to share with others:", shareUrl);
-                }
             } catch (e) {
                 console.error("Failed to generate puzzle link", e);
                 alert("Could not generate puzzle link.");
+            }
+        }
+
+        function copyTextToClipboard(text, btn) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => {
+                    if (btn) {
+                        btn.textContent = '✓ Copied Link!';
+                        btn.style.background = 'linear-gradient(135deg, #16a34a, #15803d)';
+                        setTimeout(() => {
+                            btn.textContent = '🔗 Share Link';
+                            btn.style.background = 'linear-gradient(135deg, #3b82f6, #2563eb)';
+                        }, 2500);
+                    }
+                }).catch(() => {
+                    prompt("Copy this puzzle link:", text);
+                });
+            } else {
+                prompt("Copy this puzzle link:", text);
             }
         }
 
@@ -2249,10 +2275,77 @@
 
                 currentMatchId = 'puzzle_' + Date.now();
 
+                const MAP_KEYS = ['SweetTooth', 'SharkfoodIsland', 'Foundry', 'SkullDuggery', 'Glitch'];
+                const RACE_KEYS = ['Scallywags', 'Feedback', 'Adorables', 'Veggienauts'];
                 const TYPE_CODES = ['Runner', 'Soldier', 'Medic', 'Sniper', 'Heavy', 'Bombshell', 'Scrambler', 'Mobi', 'Bramble', 'BombshellSieged', 'BrambleSieged', 'Thorn'];
 
-                if (data.m) {
-                    // New ultra-compact format
+                if (data.m !== undefined && typeof data.m === 'number') {
+                    // Ultra-compact 2-char hex index format
+                    let mapIdStr = MAP_KEYS[data.m] || 'SweetTooth';
+                    let r1Str = RACE_KEYS[data.r[0]] || 'Scallywags';
+                    let r2Str = RACE_KEYS[data.r[1]] || 'Scallywags';
+
+                    gameParams = {
+                        mapId: mapIdStr,
+                        p1Race: r1Str,
+                        p2Race: r2Str,
+                        p1ColorKey: 'blue',
+                        p2ColorKey: 'red',
+                        sideSwap: false,
+                        pogNerfs: !!data.p
+                    };
+
+                    parseMapGeom();
+                    grid = mapConfig.geomGrid;
+
+                    let loadedUnits = (data.u || []).map(arr => {
+                        let typeStr = TYPE_CODES[arr[0]];
+                        let playerStr = arr[1] === 0 ? 'P1' : 'P2';
+                        let hexObj = grid[arr[2]] || { q: 0, r: 0 };
+                        let rules = unitRules[typeStr];
+                        let defaultHp = rules ? rules.maxHp : 5;
+                        if (typeStr === 'Mobi' && gameParams.pogNerfs) defaultHp = 1;
+                        let hpVal = arr.length > 3 ? arr[3] : defaultHp;
+                        return {
+                            id: 'unit_' + Math.random(),
+                            type: typeStr,
+                            player: playerStr,
+                            q: hexObj.q,
+                            r: hexObj.r,
+                            hp: hpVal,
+                            maxHp: defaultHp,
+                            moveRange: rules ? rules.moveRange : 2,
+                            attackRange: rules ? rules.attackRange : 1,
+                            damage: rules ? (rules.damage || 0) : 0,
+                            heal: rules ? (rules.heal || 0) : 0,
+                            moved: false,
+                            attacked: false
+                        };
+                    });
+
+                    let bonusObj = {};
+                    if (data.k) {
+                        data.k.forEach(item => {
+                            let hexObj = grid[item[0]];
+                            if (hexObj) {
+                                let key = `${hexObj.q},${hexObj.r}`;
+                                bonusObj[key] = { owner: item[1] === 0 ? 'P1' : 'P2' };
+                            }
+                        });
+                    }
+
+                    game = {
+                        turn: data.t === 1 ? 'P1' : 'P2',
+                        turnNumber: data.n || 1,
+                        wits: data.w ? { P1: data.w[0], P2: data.w[1] } : { P1: 5, P2: 8 },
+                        baseHp: data.b ? { P1: data.b[0], P2: data.b[1] } : { P1: 5, P2: 5 },
+                        units: loadedUnits,
+                        bonusSpaces: bonusObj,
+                        spawnsUsedThisTurn: [],
+                        pendingSpawnType: null
+                    };
+                } else if (data.m) {
+                    // Compact tuple format
                     gameParams = {
                         mapId: data.m,
                         p1Race: data.r1,
@@ -2309,7 +2402,7 @@
                         pendingSpawnType: null
                     };
                 } else {
-                    // Legacy verbose format support
+                    // Legacy verbose format
                     gameParams = data.gp;
                     parseMapGeom();
                     grid = mapConfig.geomGrid;
